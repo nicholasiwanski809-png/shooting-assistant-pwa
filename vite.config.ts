@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/shooting-assistant-pwa/',
   plugins: [
     react(),
     tailwindcss(),
@@ -18,17 +19,17 @@ export default defineConfig({
         background_color: '#f8f4eb',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: '/shooting-assistant-pwa/',
+        start_url: '/shooting-assistant-pwa/',
         icons: [
           {
-            src: '/pwa-192x192.png',
+            src: '/shooting-assistant-pwa/pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any maskable',
           },
           {
-            src: '/pwa-512x512.png',
+            src: '/shooting-assistant-pwa/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
