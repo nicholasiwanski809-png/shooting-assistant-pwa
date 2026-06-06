@@ -59,6 +59,47 @@ h1, h2, h3, p { margin: 0; }
   backdrop-filter: blur(18px);
 }
 
+.menu-sheet {
+  position: fixed;
+  left: 50%;
+  top: calc(66px + env(safe-area-inset-top, 0px));
+  z-index: 18;
+  width: min(calc(100% - 36px), 394px);
+  transform: translateX(-50%);
+  border-radius: 20px;
+  padding: 14px;
+  background: rgba(255, 253, 247, .96);
+  border: 1px solid rgba(232, 225, 210, .82);
+  box-shadow: 0 20px 48px rgba(53, 72, 58, .18);
+  backdrop-filter: blur(18px);
+}
+
+.menu-head {
+  display: grid;
+  gap: 3px;
+  padding: 4px 4px 10px;
+}
+
+.menu-head strong { font-size: 16px; }
+.menu-head span { color: var(--muted); font-size: 13px; }
+
+.menu-item, .search-result {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  padding: 12px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .68);
+  border: 1px solid rgba(232, 225, 210, .66);
+}
+
+.menu-item + .menu-item, .search-result + .search-result { margin-top: 8px; }
+.menu-item small, .search-result small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.menu-item b, .search-result b { color: #72a978; font-size: 13px; }
+
 .icon-btn {
   width: 42px;
   height: 42px;
@@ -116,6 +157,19 @@ main { padding: 8px 18px 104px; }
   outline: 0;
   background: transparent;
   color: var(--ink);
+}
+
+.search-panel {
+  margin: -6px 0 16px;
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(255, 253, 247, .84);
+  border: 1px solid rgba(232, 225, 210, .72);
+  box-shadow: 0 12px 28px rgba(72, 91, 75, .08);
+}
+
+.compact {
+  margin: 2px 2px 10px;
 }
 
 .hero-card {
@@ -278,6 +332,25 @@ h3 { font-size: 16px; font-weight: 900; }
   margin-top: 4px;
 }
 
+.match-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.match-list em {
+  display: inline-flex;
+  max-width: 100%;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #eef7e8;
+  color: #587b5d;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.2;
+}
+
 .arrow { color: #9cac9d; font-weight: 900; }
 
 .empty-state {
@@ -357,6 +430,15 @@ details {
 details + details { margin-top: 10px; }
 summary { font-weight: 800; cursor: pointer; }
 details p { color: var(--muted); margin-top: 10px; line-height: 1.6; font-size: 14px; }
+
+.brief-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.brief-editor .field textarea {
+  min-height: 108px;
+}
 
 .shot { cursor: grab; }
 .shot-progress { border-radius: 999px; height: 12px; background: #ebe4d6; overflow: hidden; margin-top: 12px; }

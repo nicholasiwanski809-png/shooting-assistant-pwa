@@ -18,7 +18,10 @@ type Scene = {
     rhythm: string
     risk: string
   }
+  matches: string[]
 }
+
+type BriefContent = Scene['brief']
 
 type GearItem = {
   id: string
@@ -56,6 +59,7 @@ type AppState = {
   teleText: string
   teleSpeed: SpeedKey
   teleFontSize: number
+  customBriefs: Record<string, BriefContent>
 }
 
 const storageKey = 'shootingAssistantPwa:v1'
@@ -79,6 +83,7 @@ const scenes: Scene[] = [
       rhythm: '开头3秒给出店名和亮点，中段用5个短镜头展示环境与产品，结尾用一句主观评价收束。',
       risk: '避开正午强反光，收音注意咖啡机噪声。若店内人多，优先拍局部细节，减少路人入镜。',
     },
+    matches: ['器材：24-70mm 镜头、小型补光灯、无线麦克风', '镜头：门头远景、咖啡拉花、窗边人物', '场地：梧桐巷咖啡'],
   },
   {
     id: 'talk',
@@ -98,6 +103,7 @@ const scenes: Scene[] = [
       rhythm: '开头直接抛结论，中段拆成3个短观点，每个观点搭配一个例子，结尾用一句行动建议收住。',
       risk: '重点检查收音、眼神方向和面部光线。环境太吵时先录纯口播，再补拍画面。',
     },
+    matches: ['器材：无线麦克风、小型补光灯、移动电源', '镜头：一句话点评、窗边人物、菜单细节', '场地：安静墙面、窗边半身位'],
   },
   {
     id: 'vlog',
@@ -117,6 +123,7 @@ const scenes: Scene[] = [
       rhythm: '开头用移动镜头带出目的地，中段穿插短句旁白和现场声，结尾用慢镜头或定格镜头做情绪收束。',
       risk: '走拍时注意路面和人流，避免长时间盯屏。风大时优先保护收音。',
     },
+    matches: ['器材：机身、移动电源、无线麦克风', '镜头：环境收尾、推门进入、移动走拍', '场地：河岸步道、户外转场点'],
   },
 ]
 
@@ -146,6 +153,7 @@ const defaultState: AppState = {
   teleText: '',
   teleSpeed: 'medium',
   teleFontSize: 46,
+  customBriefs: {},
 }
 
 function readState(): AppState {
@@ -163,6 +171,57 @@ function stars(rating: number) {
   return '★★★★★'.slice(0, count) + '☆☆☆☆☆'.slice(0, 5 - count)
 }
 
+type SearchResult = {
+  label: string
+  desc: string
+  tab: TabKey
+  tabLabel: string
+  sceneId?: string
+}
+
+function getSearchResults(keyword: string, state: AppState): SearchResult[] {
+  const query = keyword.trim().toLowerCase()
+  if (!query) return []
+  const results: SearchResult[] = []
+  const pushIfMatch = (result: SearchResult, text: string) => {
+    if (text.toLowerCase().includes(query)) results.push(result)
+  }
+
+  const pages: SearchResult[] = [
+    { label: '首页', desc: '推荐场景、搜索和器材清单', tab: 'home', tabLabel: '页面' },
+    { label: '拍摄简报', desc: '拍摄建议、镜头节奏、风险提醒', tab: 'brief', tabLabel: '页面' },
+    { label: '场地库', desc: '新增、编辑和删除拍摄场地', tab: 'venues', tabLabel: '页面' },
+    { label: '提词器', desc: '输入口播稿并全屏自动滚动', tab: 'teleprompter', tabLabel: '页面' },
+    { label: '设置', desc: '离线、提醒和应用信息', tab: 'settings', tabLabel: '页面' },
+  ]
+  pages.forEach((page) => pushIfMatch(page, `${page.label} ${page.desc}`))
+
+  scenes.forEach((scene) => {
+    pushIfMatch(
+      { label: scene.title, desc: `${scene.category}｜${scene.desc}`, tab: 'brief', tabLabel: '场景', sceneId: scene.id },
+      `${scene.title} ${scene.category} ${scene.desc} ${scene.matches.join(' ')} ${scene.brief.advice} ${scene.brief.rhythm} ${scene.brief.risk}`,
+    )
+  })
+  state.gear.forEach((item) => pushIfMatch(
+    { label: item.name, desc: `${item.type}｜${item.count}件｜${item.note || '无备注'}`, tab: 'home', tabLabel: '器材' },
+    `${item.name} ${item.type} ${item.note}`,
+  ))
+  state.shots.forEach((shot) => pushIfMatch(
+    { label: shot.title, desc: shot.meta, tab: 'brief', tabLabel: '镜头' },
+    `${shot.title} ${shot.meta}`,
+  ))
+  state.venues.forEach((venue) => pushIfMatch(
+    { label: venue.name, desc: `${venue.category}｜${venue.desc}`, tab: 'venues', tabLabel: '场地' },
+    `${venue.name} ${venue.category} ${venue.desc}`,
+  ))
+  pushIfMatch(
+    { label: '口播稿', desc: state.teleText ? '打开提词器查看已保存文案' : '提词器暂无文案', tab: 'teleprompter', tabLabel: '提词器' },
+    `口播稿 提词器 ${state.teleText}`,
+  )
+
+  return results.slice(0, 8)
+}
+
 function App() {
   const [state, setState] = useState<AppState>(readState)
   const [search, setSearch] = useState('')
@@ -175,6 +234,7 @@ function App() {
   const [teleOpen, setTeleOpen] = useState(false)
   const [telePaused, setTelePaused] = useState(false)
   const [teleProgress, setTeleProgress] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(false)
   const teleStageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -202,10 +262,14 @@ function App() {
   }, [teleOpen, telePaused, state.teleSpeed])
 
   const selectedScene = scenes.find((scene) => scene.id === state.selectedSceneId)
+  const currentBrief = selectedScene
+    ? state.customBriefs[selectedScene.id] || selectedScene.brief
+    : null
   const visibleScenes = scenes.filter((scene) => {
     const text = `${scene.title} ${scene.desc} ${scene.category}`.toLowerCase()
     return (filter === '全部' || scene.category === filter) && (!search || text.includes(search.toLowerCase()))
   })
+  const searchResults = getSearchResults(search, state)
   const totalWeight = state.gear
     .filter((item) => item.packed)
     .reduce((total, item) => total + item.weight * item.count, 0)
@@ -216,12 +280,41 @@ function App() {
   }
 
   function setTab(tab: TabKey) {
+    setMenuOpen(false)
     updateState({ currentTab: tab })
   }
 
   function openScene(scene: Scene) {
     updateState({ selectedSceneId: scene.id })
     setAiScene(scene)
+  }
+
+  function navigateSearchResult(result: SearchResult) {
+    setSearch('')
+    setFilter('全部')
+    if (result.sceneId) updateState({ currentTab: result.tab, selectedSceneId: result.sceneId })
+    else updateState({ currentTab: result.tab })
+    setToast(`已打开${result.label}`)
+  }
+
+  function saveBrief(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedScene) {
+      setToast('请先在首页选择一个场景')
+      return
+    }
+    const form = new FormData(event.currentTarget)
+    updateState({
+      customBriefs: {
+        ...state.customBriefs,
+        [selectedScene.id]: {
+          advice: String(form.get('advice') || '').trim(),
+          rhythm: String(form.get('rhythm') || '').trim(),
+          risk: String(form.get('risk') || '').trim(),
+        },
+      },
+    })
+    setToast('简报方案已保存')
   }
 
   function toggleGear(index: number, key: GearStateKey) {
@@ -304,20 +397,58 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="icon-btn" type="button" onClick={() => setToast('菜单暂未展开')}>≡</button>
+        <button className="icon-btn" type="button" onClick={() => setMenuOpen((value) => !value)}>≡</button>
         <div className="title">{({ home: '拍摄助手', brief: '拍摄简报', venues: '场地', teleprompter: '提词器', settings: '设置' } as Record<TabKey, string>)[state.currentTab]}</div>
         <button className="icon-btn avatar" type="button" onClick={() => setToast('个人设置入口')}>王</button>
       </header>
+      {menuOpen && (
+        <div className="menu-sheet">
+          <div className="menu-head">
+            <strong>拍摄助手导航</strong>
+            <span>快速进入常用页面</span>
+          </div>
+          {([
+            ['home', '首页', '搜索、场景和器材清单'],
+            ['brief', '简报', '编辑拍摄方案和镜头脚本'],
+            ['venues', '场地', '管理踩点场地'],
+            ['teleprompter', '提词器', '口播稿自动滚动'],
+            ['settings', '设置', '离线、提醒和应用信息'],
+          ] as Array<[TabKey, string, string]>).map(([key, label, desc]) => (
+            <button className="menu-item" key={key} type="button" onClick={() => setTab(key)}>
+              <span><strong>{label}</strong><small>{desc}</small></span>
+              <b>›</b>
+            </button>
+          ))}
+        </div>
+      )}
 
       <main>
         {state.currentTab === 'home' && (
           <section className="view">
             <div className="search-row">
               <label className="search">⌕
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索地点、主题或装备" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && searchResults[0]) navigateSearchResult(searchResults[0])
+                  }}
+                  placeholder="搜索页面、场景、器材、镜头或场地"
+                />
               </label>
-              <button className="icon-btn" type="button" onClick={() => setToast('已定位到示例城市')}>⌖</button>
+              <button className="icon-btn" type="button" onClick={() => searchResults[0] ? navigateSearchResult(searchResults[0]) : setToast('没有匹配结果')}>↵</button>
             </div>
+            {search.trim() && (
+              <div className="search-panel">
+                <div className="section-head compact"><h2>搜索结果</h2><span>{searchResults.length}项</span></div>
+                {searchResults.length > 0 ? searchResults.map((result) => (
+                  <button className="search-result" key={`${result.tab}-${result.label}-${result.desc}`} type="button" onClick={() => navigateSearchResult(result)}>
+                    <span><strong>{result.label}</strong><small>{result.desc}</small></span>
+                    <b>{result.tabLabel}</b>
+                  </button>
+                )) : <div className="empty-state">没有找到结果，可以换个关键词试试。</div>}
+              </div>
+            )}
 
             <article className="hero-card">
               <span className="eyebrow">AI 驱动｜今日外拍建议</span>
@@ -339,7 +470,11 @@ function App() {
               {visibleScenes.map((scene) => (
                 <button className="card scene-card" key={scene.id} type="button" onClick={() => openScene(scene)}>
                   <span className="icon">{scene.mark}</span>
-                  <span><h3>{scene.title}</h3><p>{scene.desc}</p></span>
+                  <span>
+                    <h3>{scene.title}</h3>
+                    <p>{scene.desc}</p>
+                    <span className="match-list">{scene.matches.map((item) => <em key={item}>{item}</em>)}</span>
+                  </span>
                   <span className="arrow">›</span>
                 </button>
               ))}
@@ -387,9 +522,16 @@ function App() {
               </div>
             </article>
             <div className="section-head"><h2>拍摄方案</h2><span className="stars">★★★★★</span></div>
-            <details open><summary>拍摄建议</summary><p>{selectedScene?.brief.advice || '请先在首页选择一个场景。'}</p></details>
-            <details><summary>镜头节奏</summary><p>{selectedScene?.brief.rhythm || '请先在首页选择一个场景。'}</p></details>
-            <details><summary>风险提醒</summary><p>{selectedScene?.brief.risk || '请先在首页选择一个场景。'}</p></details>
+            {selectedScene && currentBrief ? (
+              <form className="brief-editor" key={selectedScene.id} onSubmit={saveBrief}>
+                <label className="field">拍摄建议<textarea name="advice" defaultValue={currentBrief.advice} /></label>
+                <label className="field">镜头节奏<textarea name="rhythm" defaultValue={currentBrief.rhythm} /></label>
+                <label className="field">风险提醒<textarea name="risk" defaultValue={currentBrief.risk} /></label>
+                <button className="btn btn-primary wide" type="submit">保存简报方案</button>
+              </form>
+            ) : (
+              <div className="empty-state">请先在首页选择一个场景，再编辑拍摄方案。</div>
+            )}
 
             <div className="section-head"><h2>镜头脚本</h2><span>已拍 {shotDone}/{state.shots.length}</span></div>
             <article className="card">
